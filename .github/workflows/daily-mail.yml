@@ -2,9 +2,8 @@ name: Send AI Daily Digest to Email
 
 on:
   schedule:
-    # 每天 UTC 时间凌晨 0点（北京时间早上 8 点）自动执行
     - cron: '0 0 * * *'
-  workflow_dispatch: # 允许你随时手动点击运行测试
+  workflow_dispatch:
 
 jobs:
   build-and-send:
@@ -19,8 +18,30 @@ jobs:
       - name: 🤖 运行脚本生成精选日报
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        # 抓取过去24小时内容，精选15篇，输出到 digest.md
         run: npx -y bun scripts/digest.ts --hours 24 --top-n 15 --lang zh --output ./digest.md
+
+      - name: 📝 修改正文主标题为中英文对照
+        run: |
+          # 自动将原本生成的纯中文 H1 标题替换为中英对照
+          sed -i 's/# AI 博客每日精选/# 🚀 AI 博客每日精选 | AI Daily Digest/g' digest.md
+
+      - name: 💅 注入精美 CSS 排版样式
+        run: |
+          echo "<style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 10px; }
+            h1 { color: #1a1a1a; font-size: 22px; border-bottom: 2px solid #eaecef; padding-bottom: 8px; margin-bottom: 16px; }
+            h2 { color: #24292e; font-size: 18px; margin-top: 24px; border-bottom: 1px solid #eaecef; padding-bottom: 6px; }
+            h3 { color: #005cc5; font-size: 16px; margin-top: 20px; margin-bottom: 8px; }
+            a { color: #0066cc; text-decoration: none; font-weight: 500; }
+            a:hover { text-decoration: underline; }
+            blockquote { border-left: 4px solid #005cc5; padding: 12px 16px; margin: 12px 0; color: #4a5568; background-color: #f3f8fd; border-radius: 0 6px 6px 0; font-size: 14px; }
+            ul, ol { padding-left: 20px; margin-top: 8px; }
+            li { margin-bottom: 6px; }
+            hr { height: 1px; background-color: #e1e4e8; border: none; margin: 24px 0; }
+            strong { color: #24292e; }
+          </style>" > style.css
+          cat style.css digest.md > temp.md
+          mv temp.md digest.md
 
       - name: 📧 发送邮件到你的邮箱
         uses: dawidd6/action-send-mail@v3
@@ -29,10 +50,9 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "🚀 AI 博客每日精选 - 自动推送"
+          # 【这里将邮件本身的主题改为了中英对照】
+          subject: "🚀 AI 博客每日精选 | AI Daily Digest"
           to: ${{ secrets.TO_EMAIL }}
           from: "AI Digest Bot <${{ secrets.SMTP_USERNAME }}>"
-          # 读取刚才生成的 markdown 文件
           html_body: file://digest.md
-          # 自动将 markdown 语法转换为漂亮的 HTML 邮件排版
           convert_markdown: true
