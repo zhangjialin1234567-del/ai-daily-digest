@@ -1,0 +1,38 @@
+name: Send AI Daily Digest to Email
+
+on:
+  schedule:
+    # 每天 UTC 时间凌晨 0点（北京时间早上 8 点）自动执行
+    - cron: '0 0 * * *'
+  workflow_dispatch: # 允许你随时手动点击运行测试
+
+jobs:
+  build-and-send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 拉取最新代码
+        uses: actions/checkout@v4
+
+      - name: ⚙️ 配置 Bun 运行环境
+        uses: oven-sh/setup-bun@v1
+
+      - name: 🤖 运行脚本生成精选日报
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        # 抓取过去24小时内容，精选15篇，输出到 digest.md
+        run: npx -y bun scripts/digest.ts --hours 24 --top-n 15 --lang zh --output ./digest.md
+
+      - name: 📧 发送邮件到你的邮箱
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "🚀 AI 博客每日精选 - 自动推送"
+          to: ${{ secrets.TO_EMAIL }}
+          from: "AI Digest Bot <${{ secrets.SMTP_USERNAME }}>"
+          # 读取刚才生成的 markdown 文件
+          html_body: file://digest.md
+          # 自动将 markdown 语法转换为漂亮的 HTML 邮件排版
+          convert_markdown: true
